@@ -15,11 +15,9 @@ Welcome to **Hamburgery**! This project is a full-stack web application designed
 ## 🚀 Features
 
 - **Food Management**: Add, edit, delete, and view foods available in the Hada, complete with details like name, price, recipe creator, description, and availability.
-- **Day-wise Menu Display**: See which foods are available on which day, allowing for easy planning and viewing.
+- **Day-wise Menu Display**: See which foods are available on which day.
 - **User Authentication**: Secure login and registration system for managing user access.
 - **Voting System**: Users can vote for their favorite foods, with results displayed in a table of the best-rated dishes.
-- **FastAPI & SQLAlchemy**: Modern Python web framework and ORM for efficient and scalable backend development.
-- **Next.js & React**: Powerful frontend framework for building dynamic and interactive user interfaces with TypeScript.
 
 ## 🛠️ Tech Stack
 
