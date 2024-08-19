@@ -52,28 +52,19 @@ Welcome to the **Hamburgery**! This project is a web application designed to man
 
 4. **Set up environment variables:**
 
-   Create a `.env` file in the root directory and configure it according to your needs. Example:
+   Create a `.env` file in the root directory and configure it according to your postgres settings:
 
    ```ini
-   DATABASE_URL=sqlite:///./hamburgery.db
-   SECRET_KEY=your-secret-key
-   ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
+   DATABASE_URL=postgresql+psycopg2://<hamburgeryuser>:<hamburgerypassword>@localhost/hamburgerydb
    ```
 
-5. **Apply database migrations:**
-
-   ```bash
-   alembic upgrade head
-   ```
-
-6. **Run the application:**
+5. **Run the application:**
 
    ```bash
    uvicorn app.main:app --reload
    ```
 
-7. **Access the API:**
+6. **Access the API:**
 
    - Go to `http://127.0.0.1:8000/docs` to explore the interactive API documentation provided by **Swagger UI**.
 
@@ -105,5 +96,5 @@ pytest
 
 For any inquiries, feel free to reach out:
 
-- **Email**: [your-email@example.com](mailto:omer.haimovitz@gmail.com)
-- **LinkedIn**: [Your LinkedIn Profile](https://www.linkedin.com/in/omer-h-1531a5225?trk=contact-info)
+- **Email**: [omer.haimovitz@gmail.com](mailto:omer.haimovitz@gmail.com)
+- **LinkedIn**: [My LinkedIn Profile](https://www.linkedin.com/in/omer-h-1531a5225?trk=contact-info)
