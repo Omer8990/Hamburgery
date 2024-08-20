@@ -1,5 +1,6 @@
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from contextlib import asynccontextmanager
 
 from src.config import settings
 
@@ -10,9 +11,13 @@ class DbConnector:
         self.engine = create_async_engine(database_url, echo=True)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine, class_=AsyncSession)
 
+    @asynccontextmanager
     async def get_db(self):
-        async with self.SessionLocal() as session:
+        session = self.SessionLocal()
+        try:
             yield session
+        finally:
+            await session.close()
 
     async def create_all_tables(self):
         async with self.engine.begin() as conn:
