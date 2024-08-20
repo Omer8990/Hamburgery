@@ -6,10 +6,13 @@ from src.config import settings
 
 Base = declarative_base()
 
+
 class DbConnector:
     def __init__(self, database_url: str = settings.DATABASE_URL):
         self.engine = create_async_engine(database_url, echo=True)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine, class_=AsyncSession)
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine, class_=AsyncSession
+        )
 
     @asynccontextmanager
     async def get_db(self):
