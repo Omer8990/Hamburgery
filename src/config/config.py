@@ -1,3 +1,5 @@
-from src.env_yaml import config
+from envyaml import EnvYAML
+
+config = EnvYAML('env.yaml')
 
 settings = config
