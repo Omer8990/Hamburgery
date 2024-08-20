@@ -1,9 +1,3 @@
-import os
-from dotenv import load_dotenv
+from src.env_yaml import config
 
-load_dotenv()
-
-class Settings:
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-
-settings = Settings()
+settings = config
