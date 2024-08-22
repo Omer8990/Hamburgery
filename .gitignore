@@ -162,3 +162,5 @@ cython_debug/
 #.idea/
 
 .pre-commit-config.yaml
+
+scratch_main.py
