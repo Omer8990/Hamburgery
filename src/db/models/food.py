@@ -11,9 +11,6 @@ class Food(Base):
     price = Column(Float, nullable=False)
     description = Column(String, nullable=True)
     creator_id = Column(Integer, ForeignKey("users.id"))
-    day_id = Column(Integer, ForeignKey("days.id"))
-    category_id = Column(Integer, ForeignKey("categories.id"))
 
     creator = relationship("User", back_populates="foods")
-    day = relationship("Day", back_populates="foods")
-    category = relationship("Category", back_populates="foods")
+    availability = relationship("FoodAvailability", back_populates="food")
