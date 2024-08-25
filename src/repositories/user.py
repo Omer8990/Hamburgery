@@ -24,22 +24,22 @@ class UserRepository:
         """
         self.db_connector = db_connector
 
-    async def _get_user_by_id(self, user_id: int) -> User:
+    def _get_user_by_id(self, user_id: int) -> User:
         """
         Private helper method to retrieve a User object by its ID.
 
         :param user_id: ID of the User to retrieve.
         :return: User object if found, else None.
         """
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(User).filter(User.id == user_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             user = result.scalar_one_or_none()
             if not user:
                 logger.warning(f"User with ID {user_id} not found.")
             return user
 
-    async def get_user(self, user_id: int) -> User:
+    def get_user(self, user_id: int) -> User:
         """
         Retrieves a User object by its ID.
 
@@ -47,9 +47,9 @@ class UserRepository:
         :return: User object if found, else None.
         """
         logger.info(f"Fetching User with ID {user_id}.")
-        return await self._get_user_by_id(user_id)
+        return self._get_user_by_id(user_id)
 
-    async def get_user_by_email(self, email: str) -> User:
+    def get_user_by_email(self, email: str) -> User:
         """
         Retrieves a User object by its email.
 
@@ -57,15 +57,15 @@ class UserRepository:
         :return: User object if found, else None.
         """
         logger.info(f"Fetching User with email {email}.")
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(User).filter(User.email == email)
-            result = await db.execute(query)
+            result = db.execute(query)
             user = result.scalar_one_or_none()
             if not user:
                 logger.warning(f"User with email {email} not found.")
             return user
 
-    async def create_user(self, user: UserCreate) -> User:
+    def create_user(self, user: UserCreate) -> User:
         """
         Creates a new User object in the database.
 
@@ -73,14 +73,14 @@ class UserRepository:
         :return: The newly created User object.
         """
         logger.info(f"Creating new User with email {user.email}.")
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             db_user = User(email=user.email, hashed_password=user.password)
             db.add(db_user)
-            await db.refresh(db_user)
+            db.refresh(db_user)
             logger.info(f"User created with ID {db_user.id}.")
             return db_user
 
-    async def update_user(self, user_id: int, user_update: UserUpdate) -> User:
+    def update_user(self, user_id: int, user_update: UserUpdate) -> User:
         """
         Updates an existing User object in the database.
 
@@ -91,9 +91,9 @@ class UserRepository:
         """
         logger.info(f"Updating User with ID {user_id}.")
 
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(User).filter(User.id == user_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             db_user = result.scalar_one_or_none()
 
             if not db_user:
@@ -101,16 +101,15 @@ class UserRepository:
                 raise NotFoundException(user_id)
 
             update_data = user_update.model_dump(exclude_unset=True)
-            await db.execute(
+            db.execute(
                 update(User).where(User.id == user_id).values(**update_data)
             )
-            await db.commit()
-
-            updated_user = await self._get_user_by_id(user_id)
+            
+            updated_user = self._get_user_by_id(user_id)
             logger.info(f"User with ID {updated_user.id} updated.")
             return updated_user
 
-    async def delete_user(self, user_id: int) -> User:
+    def delete_user(self, user_id: int) -> User:
         """
         Deletes a User object from the database by its ID.
 
@@ -118,10 +117,10 @@ class UserRepository:
         :return: The deleted User object if it was found, else None.
         """
         logger.info(f"Deleting User with ID {user_id}.")
-        async with self.db_connector.get_db() as db:
-            db_user = await self._get_user_by_id(user_id)
+        with self.db_connector.get_db() as db:
+            db_user = self._get_user_by_id(user_id)
             if db_user:
-                await db.delete(db_user)
+                db.delete(db_user)
                 logger.info(f"User with ID {user_id} deleted.")
             else:
                 logger.warning(f"Delete failed: User with ID {user_id} not found.")

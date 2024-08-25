@@ -24,7 +24,7 @@ class FoodAvailabilityRepository:
         """
         self.db_connector = db_connector
 
-    async def _get_food_availability_by_id(
+    def _get_food_availability_by_id(
         self, food_availability_id: int
     ) -> FoodAvailability:
         """
@@ -33,11 +33,11 @@ class FoodAvailabilityRepository:
         :param food_availability_id: ID of the FoodAvailability to retrieve.
         :return: FoodAvailability object if found, else None.
         """
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(FoodAvailability).filter(
                 FoodAvailability.id == food_availability_id
             )
-            result = await db.execute(query)
+            result = db.execute(query)
             food_availability = result.scalar_one_or_none()
             if not food_availability:
                 logger.warning(
@@ -45,7 +45,7 @@ class FoodAvailabilityRepository:
                 )
             return food_availability
 
-    async def get_food_availability(
+    def get_food_availability(
         self, food_availability_id: int
     ) -> FoodAvailability:
         """
@@ -55,9 +55,9 @@ class FoodAvailabilityRepository:
         :return: FoodAvailability object if found, else None.
         """
         logger.info(f"Fetching FoodAvailability with ID {food_availability_id}.")
-        return await self._get_food_availability_by_id(food_availability_id)
+        return self._get_food_availability_by_id(food_availability_id)
 
-    async def create_food_availability(
+    def create_food_availability(
         self, food_availability: FoodAvailabilityCreate
     ) -> FoodAvailability:
         """
@@ -67,14 +67,14 @@ class FoodAvailabilityRepository:
         :return: The newly created FoodAvailability object.
         """
         logger.info("Creating new FoodAvailability entry.")
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             db_food_availability = FoodAvailability(**food_availability.model_dump())
             db.add(db_food_availability)
-            await db.refresh(db_food_availability)
+            db.refresh(db_food_availability)
             logger.info(f"FoodAvailability created with ID {db_food_availability.id}.")
             return db_food_availability
 
-    async def update_food_availability(
+    def update_food_availability(
         self,
         food_availability_id: int,
         food_availability_update: FoodAvailabilityUpdate,
@@ -89,11 +89,11 @@ class FoodAvailabilityRepository:
         """
         logger.info(f"Updating FoodAvailability with ID {food_availability_id}.")
 
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(FoodAvailability).filter(
                 FoodAvailability.id == food_availability_id
             )
-            result = await db.execute(query)
+            result = db.execute(query)
             db_food_availability = result.scalar_one_or_none()
 
             if not db_food_availability:
@@ -103,14 +103,13 @@ class FoodAvailabilityRepository:
                 raise NotFoundException(food_availability_id)
 
             update_data = food_availability_update.model_dump(exclude_unset=True)
-            await db.execute(
+            db.execute(
                 update(FoodAvailability)
                 .where(FoodAvailability.id == food_availability_id)
                 .values(**update_data)
             )
-            await db.commit()
 
-            updated_food_availability = await self._get_food_availability_by_id(
+            updated_food_availability = self._get_food_availability_by_id(
                 food_availability_id
             )
             logger.info(
@@ -118,7 +117,7 @@ class FoodAvailabilityRepository:
             )
             return updated_food_availability
 
-    async def delete_food_availability(
+    def delete_food_availability(
         self, food_availability_id: int
     ) -> FoodAvailability:
         """
@@ -128,12 +127,12 @@ class FoodAvailabilityRepository:
         :return: The deleted FoodAvailability object if it was found, else None.
         """
         logger.info(f"Deleting FoodAvailability with ID {food_availability_id}.")
-        async with self.db_connector.get_db() as db:
-            db_food_availability = await self._get_food_availability_by_id(
+        with self.db_connector.get_db() as db:
+            db_food_availability = self._get_food_availability_by_id(
                 food_availability_id
             )
             if db_food_availability:
-                await db.delete(db_food_availability)
+                db.delete(db_food_availability)
                 logger.info(f"FoodAvailability with ID {food_availability_id} deleted.")
             else:
                 logger.warning(

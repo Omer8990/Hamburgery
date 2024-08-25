@@ -1,7 +1,6 @@
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy import create_engine
+from contextlib import contextmanager
 
 from src.config import settings
 
@@ -20,14 +19,13 @@ class DbConnector:
     """
 
     def __init__(self, database_url: str = settings.DATABASE_URL):
-        self.engine = create_async_engine(database_url, echo=True)
+        self.engine = create_engine(database_url, echo=True)
         self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False,
-            bind=self.engine, class_=AsyncSession
+            autocommit=False, autoflush=False, bind=self.engine
         )
-        self._session: AsyncSession | None = None
+        self._session: Session | None = None
 
-    async def _get_or_create_session(self) -> AsyncSession:
+    def _get_or_create_session(self) -> Session:
         """
         Creates a session if it doesn't exist,
         otherwise returns the existing session.
@@ -36,45 +34,43 @@ class DbConnector:
             self._session = self.SessionLocal()
         return self._session
 
-    async def close_session(self) -> None:
+    def close_session(self) -> None:
         """
         Closes the current session if it exists.
         """
         if self._session is not None:
-            await self._session.close()
+            self._session.close()
             self._session = None
 
-    @asynccontextmanager
-    async def get_db(
-        self, auto_commit: bool = True
-    ) -> AsyncGenerator[AsyncSession, None]:
+    @contextmanager
+    def get_db(self, auto_commit: bool = True) -> Session:
         """
         Provides a database session within a context manager.
 
         :param auto_commit: If True, automatically commits the session. Defaults to True.
-        :return: AsyncGenerator yielding an AsyncSession.
+        :return: Generator yielding a Session.
         """
-        session = await self._get_or_create_session()
+        session = self._get_or_create_session()
         try:
             yield session
             if auto_commit:
-                await session.commit()
+                session.commit()
         except Exception:
-            await session.rollback()
+            session.rollback()
             raise
         finally:
-            pass
+            self.close_session()
 
-    async def create_all_tables(self) -> None:
+    def create_all_tables(self) -> None:
         """
         Creates all tables in the database based on the Base metadata.
         """
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        with self.engine.begin() as conn:
+            Base.metadata.create_all(conn)
 
-    async def drop_all_tables(self) -> None:
+    def drop_all_tables(self) -> None:
         """
         Drops all tables in the database based on the Base metadata.
         """
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+        with self.engine.begin() as conn:
+            Base.metadata.drop_all(conn)

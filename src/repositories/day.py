@@ -24,22 +24,22 @@ class DayRepository:
         """
         self.db_connector = db_connector
 
-    async def _get_day_by_id(self, day_id: int) -> Day:
+    def _get_day_by_id(self, day_id: int) -> Day:
         """
         Private helper method to retrieve a Day object by its ID.
 
         :param day_id: ID of the Day to retrieve.
         :return: Day object if found, else None.
         """
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(Day).filter(Day.id == day_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             day = result.scalar_one_or_none()
             if not day:
                 logger.warning(f"Day with ID {day_id} not found.")
             return day
 
-    async def get_day(self, day_id: int) -> Day:
+    def get_day(self, day_id: int) -> Day:
         """
         Retrieves a Day object by its ID.
 
@@ -47,9 +47,9 @@ class DayRepository:
         :return: Day object if found, else None.
         """
         logger.info(f"Fetching Day with ID {day_id}.")
-        return await self._get_day_by_id(day_id)
+        return self._get_day_by_id(day_id)
 
-    async def create_day(self, day: DayCreate) -> Day:
+    def create_day(self, day: DayCreate) -> Day:
         """
         Creates a new Day object in the database.
 
@@ -57,14 +57,15 @@ class DayRepository:
         :return: The newly created Day object.
         """
         logger.info("Creating new Day entry.")
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             db_day = Day(**day.model_dump())
             db.add(db_day)
-            await db.refresh(db_day)
+            db.refresh(db_day)
             logger.info(f"Day created with ID {db_day.id}.")
             return db_day
 
-    async def update_day(self, day_id: int, day_update: DayUpdate) -> Day:
+
+    def update_day(self, day_id: int, day_update: DayUpdate) -> Day:
         """
         Updates an existing Day object in the database.
 
@@ -75,9 +76,9 @@ class DayRepository:
         """
         logger.info(f"Updating Day with ID {day_id}.")
 
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(Day).filter(Day.id == day_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             db_day = result.scalar_one_or_none()
 
             if not db_day:
@@ -85,14 +86,13 @@ class DayRepository:
                 raise NotFoundException(day_id)
 
             update_data = day_update.model_dump(exclude_unset=True)
-            await db.execute(update(Day).where(Day.id == day_id).values(**update_data))
-            await db.commit()
+            db.execute(update(Day).where(Day.id == day_id).values(**update_data))
 
-            updated_day = await self._get_day_by_id(day_id)
+            updated_day = self._get_day_by_id(day_id)
             logger.info(f"Day with ID {day_id} updated.")
             return updated_day
 
-    async def delete_day(self, day_id: int) -> Day:
+    def delete_day(self, day_id: int) -> Day:
         """
         Deletes a Day object from the database by its ID.
 
@@ -100,10 +100,10 @@ class DayRepository:
         :return: The deleted Day object if it was found, else None.
         """
         logger.info(f"Deleting Day with ID {day_id}.")
-        async with self.db_connector.get_db() as db:
-            db_day = await self._get_day_by_id(day_id)
+        with self.db_connector.get_db() as db:
+            db_day = self._get_day_by_id(day_id)
             if db_day:
-                await db.delete(db_day)
+                db.delete(db_day)
                 logger.info(f"Day with ID {day_id} deleted.")
             else:
                 logger.warning(f"Delete failed: Day with ID {day_id} not found.")

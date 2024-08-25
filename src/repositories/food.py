@@ -24,22 +24,22 @@ class FoodRepository:
         """
         self.db_connector = db_connector
 
-    async def _get_food_by_id(self, food_id: int) -> Food:
+    def _get_food_by_id(self, food_id: int) -> Food:
         """
         Private helper method to retrieve a Food object by its ID.
 
         :param food_id: ID of the Food to retrieve.
         :return: Food object if found, else None.
         """
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(Food).filter(Food.id == food_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             food = result.scalar_one_or_none()
             if not food:
                 logger.warning(f"Food with ID {food_id} not found.")
             return food
 
-    async def get_food(self, food_id: int) -> Food:
+    def get_food(self, food_id: int) -> Food:
         """
         Retrieves a Food object by its ID.
 
@@ -47,9 +47,9 @@ class FoodRepository:
         :return: Food object if found, else None.
         """
         logger.info(f"Fetching Food with ID {food_id}.")
-        return await self._get_food_by_id(food_id)
+        return self._get_food_by_id(food_id)
 
-    async def create_food(self, food: FoodCreate) -> Food:
+    def create_food(self, food: FoodCreate) -> Food:
         """
         Creates a new Food object in the database.
 
@@ -57,14 +57,14 @@ class FoodRepository:
         :return: The newly created Food object.
         """
         logger.info("Creating new Food entry.")
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             db_food = Food(**food.model_dump())
             db.add(db_food)
-            await db.refresh(db_food)
+            db.refresh(db_food)
             logger.info(f"Food created with ID {db_food.id}.")
             return db_food
 
-    async def update_food(self, food_id: int, food_update: FoodUpdate) -> Food:
+    def update_food(self, food_id: int, food_update: FoodUpdate) -> Food:
         """
         Updates an existing Food object in the database.
 
@@ -75,9 +75,9 @@ class FoodRepository:
         """
         logger.info(f"Updating Food with ID {food_id}.")
 
-        async with self.db_connector.get_db() as db:
+        with self.db_connector.get_db() as db:
             query = select(Food).filter(Food.id == food_id)
-            result = await db.execute(query)
+            result = db.execute(query)
             db_food = result.scalar_one_or_none()
 
             if not db_food:
@@ -85,16 +85,15 @@ class FoodRepository:
                 raise NotFoundException(food_id)
 
             update_data = food_update.model_dump(exclude_unset=True)
-            await db.execute(
+            db.execute(
                 update(Food).where(Food.id == food_id).values(**update_data)
             )
-            await db.commit()
 
-            updated_food = await self._get_food_by_id(food_id)
+            updated_food = self._get_food_by_id(food_id)
             logger.info(f"Food with ID {updated_food.id} updated.")
             return updated_food
 
-    async def delete_food(self, food_id: int) -> Food:
+    def delete_food(self, food_id: int) -> Food:
         """
         Deletes a Food object from the database by its ID.
 
@@ -102,10 +101,10 @@ class FoodRepository:
         :return: The deleted Food object if it was found, else None.
         """
         logger.info(f"Deleting Food with ID {food_id}.")
-        async with self.db_connector.get_db() as db:
-            db_food = await self._get_food_by_id(food_id)
+        with self.db_connector.get_db() as db:
+            db_food = self._get_food_by_id(food_id)
             if db_food:
-                await db.delete(db_food)
+                db.delete(db_food)
                 logger.info(f"Food with ID {food_id} deleted.")
             else:
                 logger.warning(f"Delete failed: Food with ID {food_id} not found.")
