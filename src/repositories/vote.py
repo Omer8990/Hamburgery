@@ -1,9 +1,10 @@
 import logging
 from sqlalchemy.future import select
+from sqlalchemy import update
 from src.db.models.vote import Vote
 from src.schemas.vote import VoteCreate, VoteUpdate
 from src.db.connector import DbConnector
-from src.exceptions import VoteNotFoundException
+from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +74,25 @@ class VoteRepository:
         :raises VoteNotFoundException: If the Vote object is not found.
         """
         logger.info(f"Updating Vote with ID {vote_id}.")
+
         async with self.db_connector.get_db() as db:
-            db_vote = await self._get_vote_by_id(vote_id)
+            query = select(Vote).filter(Vote.id == vote_id)
+            result = await db.execute(query)
+            db_vote = result.scalar_one_or_none()
+
             if not db_vote:
                 logger.error(f"Update failed: Vote with ID {vote_id} not found.")
-                raise VoteNotFoundException(vote_id)
+                raise NotFoundException(vote_id)
 
-            for key, value in vote_update.model_dump(exclude_unset=True).items():
-                setattr(db_vote, key, value)
-            await db.refresh(db_vote)
-            logger.info(f"Vote with ID {db_vote.id} updated.")
-            return db_vote
+            update_data = vote_update.model_dump(exclude_unset=True)
+            await db.execute(
+                update(Vote).where(Vote.id == vote_id).values(**update_data)
+            )
+            await db.commit()
+
+            updated_vote = await self._get_vote_by_id(vote_id)
+            logger.info(f"Vote with ID {vote_id} updated.")
+            return updated_vote
 
     async def delete_vote(self, vote_id: int) -> Vote:
         """

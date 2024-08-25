@@ -15,14 +15,34 @@ class DbConnector:
     This class provides methods to get a session for database interactions,
     and to create or drop tables in the database.
 
-    :param database_url: The database URL for connection. Defaults to settings.DATABASE_URL.
+    :param database_url: The database URL for connection.
+    Defaults to settings.DATABASE_URL.
     """
 
     def __init__(self, database_url: str = settings.DATABASE_URL):
         self.engine = create_async_engine(database_url, echo=True)
         self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=self.engine, class_=AsyncSession
+            autocommit=False, autoflush=False,
+            bind=self.engine, class_=AsyncSession
         )
+        self._session: AsyncSession | None = None
+
+    async def _get_or_create_session(self) -> AsyncSession:
+        """
+        Creates a session if it doesn't exist,
+        otherwise returns the existing session.
+        """
+        if self._session is None:
+            self._session = self.SessionLocal()
+        return self._session
+
+    async def close_session(self) -> None:
+        """
+        Closes the current session if it exists.
+        """
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
     @asynccontextmanager
     async def get_db(
@@ -34,7 +54,7 @@ class DbConnector:
         :param auto_commit: If True, automatically commits the session. Defaults to True.
         :return: AsyncGenerator yielding an AsyncSession.
         """
-        session: AsyncSession = self.SessionLocal()
+        session = await self._get_or_create_session()
         try:
             yield session
             if auto_commit:
@@ -43,7 +63,7 @@ class DbConnector:
             await session.rollback()
             raise
         finally:
-            await session.close()
+            pass
 
     async def create_all_tables(self) -> None:
         """

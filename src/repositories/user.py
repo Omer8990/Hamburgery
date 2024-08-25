@@ -1,9 +1,10 @@
 import logging
 from sqlalchemy.future import select
+from sqlalchemy import update
 from src.db.models.user import User
 from src.schemas.user import UserCreate, UserUpdate
 from src.db.connector import DbConnector
-from src.exceptions import UserNotFoundException
+from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -86,20 +87,28 @@ class UserRepository:
         :param user_id: ID of the User to update.
         :param user_update: UserUpdate schema with the updated data.
         :return: The updated User object.
-        :raises UserNotFoundException: If the User object is not found.
+        :raises NotFoundException: If the User object is not found.
         """
         logger.info(f"Updating User with ID {user_id}.")
+
         async with self.db_connector.get_db() as db:
-            db_user = await self._get_user_by_id(user_id)
+            query = select(User).filter(User.id == user_id)
+            result = await db.execute(query)
+            db_user = result.scalar_one_or_none()
+
             if not db_user:
                 logger.error(f"Update failed: User with ID {user_id} not found.")
-                raise UserNotFoundException(user_id)
+                raise NotFoundException(user_id)
 
-            for key, value in user_update.model_dump(exclude_unset=True).items():
-                setattr(db_user, key, value)
-            await db.refresh(db_user)
-            logger.info(f"User with ID {db_user.id} updated.")
-            return db_user
+            update_data = user_update.model_dump(exclude_unset=True)
+            await db.execute(
+                update(User).where(User.id == user_id).values(**update_data)
+            )
+            await db.commit()
+
+            updated_user = await self._get_user_by_id(user_id)
+            logger.info(f"User with ID {updated_user.id} updated.")
+            return updated_user
 
     async def delete_user(self, user_id: int) -> User:
         """

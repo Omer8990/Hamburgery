@@ -1,9 +1,10 @@
 import logging
 from sqlalchemy.future import select
+from sqlalchemy import update
 from src.db.models.day import Day
 from src.schemas.day import DayCreate, DayUpdate
 from src.db.connector import DbConnector
-from src.exceptions import DayNotFoundException
+from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -70,20 +71,26 @@ class DayRepository:
         :param day_id: ID of the Day to update.
         :param day_update: DayUpdate schema with the updated data.
         :return: The updated Day object.
-        :raises DayNotFoundException: If the Day object is not found.
+        :raises NotFoundException: If the Day object is not found.
         """
         logger.info(f"Updating Day with ID {day_id}.")
+
         async with self.db_connector.get_db() as db:
-            db_day = await self._get_day_by_id(day_id)
+            query = select(Day).filter(Day.id == day_id)
+            result = await db.execute(query)
+            db_day = result.scalar_one_or_none()
+
             if not db_day:
                 logger.error(f"Update failed: Day with ID {day_id} not found.")
-                raise DayNotFoundException(day_id)
+                raise NotFoundException(day_id)
 
-            for key, value in day_update.model_dump(exclude_unset=True).items():
-                setattr(db_day, key, value)
-            await db.refresh(db_day)
-            logger.info(f"Day with ID {db_day.id} updated.")
-            return db_day
+            update_data = day_update.model_dump(exclude_unset=True)
+            await db.execute(update(Day).where(Day.id == day_id).values(**update_data))
+            await db.commit()
+
+            updated_day = await self._get_day_by_id(day_id)
+            logger.info(f"Day with ID {day_id} updated.")
+            return updated_day
 
     async def delete_day(self, day_id: int) -> Day:
         """

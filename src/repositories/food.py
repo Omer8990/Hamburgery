@@ -1,9 +1,10 @@
 import logging
 from sqlalchemy.future import select
+from sqlalchemy import update
 from src.db.models.food import Food
 from src.schemas.food import FoodCreate, FoodUpdate
 from src.db.connector import DbConnector
-from src.exceptions import FoodNotFoundException
+from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -70,20 +71,28 @@ class FoodRepository:
         :param food_id: ID of the Food to update.
         :param food_update: FoodUpdate schema with the updated data.
         :return: The updated Food object.
-        :raises FoodNotFoundException: If the Food object is not found.
+        :raises NotFoundException: If the Food object is not found.
         """
         logger.info(f"Updating Food with ID {food_id}.")
+
         async with self.db_connector.get_db() as db:
-            db_food = await self._get_food_by_id(food_id)
+            query = select(Food).filter(Food.id == food_id)
+            result = await db.execute(query)
+            db_food = result.scalar_one_or_none()
+
             if not db_food:
                 logger.error(f"Update failed: Food with ID {food_id} not found.")
-                raise FoodNotFoundException(food_id)
+                raise NotFoundException(food_id)
 
-            for key, value in food_update.model_dump(exclude_unset=True).items():
-                setattr(db_food, key, value)
-            await db.refresh(db_food)
-            logger.info(f"Food with ID {db_food.id} updated.")
-            return db_food
+            update_data = food_update.model_dump(exclude_unset=True)
+            await db.execute(
+                update(Food).where(Food.id == food_id).values(**update_data)
+            )
+            await db.commit()
+
+            updated_food = await self._get_food_by_id(food_id)
+            logger.info(f"Food with ID {updated_food.id} updated.")
+            return updated_food
 
     async def delete_food(self, food_id: int) -> Food:
         """

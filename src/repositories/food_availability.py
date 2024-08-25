@@ -1,9 +1,10 @@
 import logging
 from sqlalchemy.future import select
+from sqlalchemy import update
 from src.db.models.food_availability import FoodAvailability
 from src.schemas.food_availability import FoodAvailabilityCreate, FoodAvailabilityUpdate
 from src.db.connector import DbConnector
-from src.exceptions import FoodAvailabilityNotFoundException
+from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -84,26 +85,38 @@ class FoodAvailabilityRepository:
         :param food_availability_id: ID of the FoodAvailability to update.
         :param food_availability_update: FoodAvailabilityUpdate schema with the updated data.
         :return: The updated FoodAvailability object.
-        :raises FoodAvailabilityNotFoundException: If the FoodAvailability object is not found.
+        :raises NotFoundException: If the FoodAvailability object is not found.
         """
         logger.info(f"Updating FoodAvailability with ID {food_availability_id}.")
+
         async with self.db_connector.get_db() as db:
-            db_food_availability = await self._get_food_availability_by_id(
-                food_availability_id
+            query = select(FoodAvailability).filter(
+                FoodAvailability.id == food_availability_id
             )
+            result = await db.execute(query)
+            db_food_availability = result.scalar_one_or_none()
+
             if not db_food_availability:
                 logger.error(
                     f"Update failed: FoodAvailability with ID {food_availability_id} not found."
                 )
-                raise FoodAvailabilityNotFoundException(food_availability_id)
+                raise NotFoundException(food_availability_id)
 
-            for key, value in food_availability_update.model_dump(
-                exclude_unset=True
-            ).items():
-                setattr(db_food_availability, key, value)
-            await db.refresh(db_food_availability)
-            logger.info(f"FoodAvailability with ID {db_food_availability.id} updated.")
-            return db_food_availability
+            update_data = food_availability_update.model_dump(exclude_unset=True)
+            await db.execute(
+                update(FoodAvailability)
+                .where(FoodAvailability.id == food_availability_id)
+                .values(**update_data)
+            )
+            await db.commit()
+
+            updated_food_availability = await self._get_food_availability_by_id(
+                food_availability_id
+            )
+            logger.info(
+                f"FoodAvailability with ID {updated_food_availability.id} updated."
+            )
+            return updated_food_availability
 
     async def delete_food_availability(
         self, food_availability_id: int
