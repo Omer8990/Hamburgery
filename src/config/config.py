@@ -1,5 +1,5 @@
 from envyaml import EnvYAML
 
-config = EnvYAML("env.yaml")
+config = EnvYAML("src/config/env.yaml")
 
 settings = config

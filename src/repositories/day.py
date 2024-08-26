@@ -24,6 +24,14 @@ class DayRepository:
         """
         self.db_connector = db_connector
 
+    # def get_db_session(self):
+    #     """
+    #     Retrieves a database session from the DbConnector instance.
+
+    #     :return: A database session object.
+    #     """
+    #     return self.db_connector.get_db()
+
     def _get_day_by_id(self, day_id: int) -> Day:
         """
         Private helper method to retrieve a Day object by its ID.
