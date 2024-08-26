@@ -8,24 +8,25 @@ from src.schemas.food_availability import (
     FoodAvailabilityRead,
 )
 from src.exceptions import NotFoundException
+from src.services.food_availability import FoodAvailabilityService
 from src.repositories.food_availability import FoodAvailabilityRepository
 from src.db.session_manager import get_db_session
-
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def get_food_availability_repository(
+def get_food_availability_service(
     db_session: Session = Depends(get_db_session),
-) -> FoodAvailabilityRepository:
+) -> FoodAvailabilityService:
     """
-    Dependency that provides a FoodAvailabilityRepository instance.
+    Dependency that provides a FoodAvailabilityService instance.
 
     :param db_session: The database session for interacting with the FoodAvailabilityRepository.
-    :return: A FoodAvailabilityRepository instance.
+    :return: A FoodAvailabilityService instance.
     """
-    return FoodAvailabilityRepository(db_session)
+    food_availability_repository = FoodAvailabilityRepository(db_session)
+    return FoodAvailabilityService(food_availability_repository)
 
 
 @router.get(
@@ -33,28 +34,26 @@ def get_food_availability_repository(
 )
 def get_food_availability(
     food_availability_id: int,
-    food_availability_repo: FoodAvailabilityRepository = Depends(
-        get_food_availability_repository
+    food_availability_service: FoodAvailabilityService = Depends(
+        get_food_availability_service
     ),
 ):
     """
     Retrieve a food availability entry by its ID.
 
     :param food_availability_id: ID of the food availability entry to retrieve.
-    :param food_availability_repo: Instance of FoodAvailabilityRepository to interact with the database.
+    :param food_availability_service: Instance of FoodAvailabilityService to interact with the service layer.
     :return: The food availability object if found.
     :raises HTTPException: 404 error if the food availability entry is not found.
     """
     logger.info(f"API call to fetch food availability with ID: {food_availability_id}")
-    food_availability = food_availability_repo.get_food_availability(
-        food_availability_id
-    )
-    if not food_availability:
+    try:
+        return food_availability_service.get_food_availability(food_availability_id)
+    except NotFoundException:
         logger.error(f"Food availability with ID {food_availability_id} not found.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Food availability not found"
         )
-    return food_availability
 
 
 @router.post(
@@ -64,27 +63,21 @@ def get_food_availability(
 )
 def create_food_availability(
     food_availability: FoodAvailabilityCreate,
-    food_availability_repo: FoodAvailabilityRepository = Depends(
-        get_food_availability_repository
+    food_availability_service: FoodAvailabilityService = Depends(
+        get_food_availability_service
     ),
 ):
     """
     Create a new food availability entry.
 
     :param food_availability: FoodAvailabilityCreate schema with the new food availability data.
-    :param food_availability_repo: Instance of FoodAvailabilityRepository to interact with the database.
+    :param food_availability_service: Instance of FoodAvailabilityService to interact with the service layer.
     :return: The newly created food availability object.
     :raises HTTPException: 500 error if a database error occurs.
     """
     logger.info("API call to create a new food availability entry.")
     try:
-        new_food_availability = food_availability_repo.create_food_availability(
-            food_availability
-        )
-        logger.info(
-            f"New food availability entry created with ID: {new_food_availability.id}"
-        )
-        return new_food_availability
+        return food_availability_service.create_food_availability(food_availability)
     except SQLAlchemyError as e:
         logger.error(f"Failed to create food availability entry: {str(e)}")
         raise HTTPException(
@@ -99,8 +92,8 @@ def create_food_availability(
 def update_food_availability(
     food_availability_id: int,
     food_availability_update: FoodAvailabilityUpdate,
-    food_availability_repo: FoodAvailabilityRepository = Depends(
-        get_food_availability_repository
+    food_availability_service: FoodAvailabilityService = Depends(
+        get_food_availability_service
     ),
 ):
     """
@@ -108,7 +101,7 @@ def update_food_availability(
 
     :param food_availability_id: ID of the food availability entry to update.
     :param food_availability_update: FoodAvailabilityUpdate schema with the updated food availability data.
-    :param food_availability_repo: Instance of FoodAvailabilityRepository to interact with the database.
+    :param food_availability_service: Instance of FoodAvailabilityService to interact with the service layer.
     :return: The updated food availability object.
     :raises HTTPException: 404 error if the food availability entry is not found, 500 error if a database error occurs.
     """
@@ -116,13 +109,9 @@ def update_food_availability(
         f"API call to update food availability entry with ID: {food_availability_id}"
     )
     try:
-        updated_food_availability = food_availability_repo.update_food_availability(
+        return food_availability_service.update_food_availability(
             food_availability_id, food_availability_update
         )
-        logger.info(
-            f"Food availability entry with ID {food_availability_id} updated successfully"
-        )
-        return updated_food_availability
     except NotFoundException:
         logger.error(
             f"Food availability entry with ID {food_availability_id} not found for update."
@@ -143,32 +132,27 @@ def update_food_availability(
 )
 def delete_food_availability(
     food_availability_id: int,
-    food_availability_repo: FoodAvailabilityRepository = Depends(
-        get_food_availability_repository
+    food_availability_service: FoodAvailabilityService = Depends(
+        get_food_availability_service
     ),
 ):
     """
     Delete a food availability entry by its ID.
 
     :param food_availability_id: ID of the food availability entry to delete.
-    :param food_availability_repo: Instance of FoodAvailabilityRepository to interact with the database.
+    :param food_availability_service: Instance of FoodAvailabilityService to interact with the service layer.
     :return: The deleted food availability object.
     :raises HTTPException: 404 error if the food availability entry is not found.
     """
     logger.info(
         f"API call to delete food availability entry with ID: {food_availability_id}"
     )
-    food_availability = food_availability_repo.delete_food_availability(
-        food_availability_id
-    )
-    if not food_availability:
+    try:
+        return food_availability_service.delete_food_availability(food_availability_id)
+    except NotFoundException:
         logger.error(
             f"Food availability entry with ID {food_availability_id} not found for deletion."
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Food availability not found"
         )
-    logger.info(
-        f"Food availability entry with ID {food_availability_id} deleted successfully"
-    )
-    return food_availability

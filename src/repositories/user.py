@@ -1,19 +1,13 @@
-import logging
 from sqlalchemy.future import select
 from sqlalchemy import update
+from sqlalchemy.orm import Session
 from src.db.models.user import User
 from src.schemas.user import UserCreate, UserUpdate
-from src.exceptions import NotFoundException
-from sqlalchemy.orm import Session
-
-logger = logging.getLogger(__name__)
 
 
 class UserRepository:
     """
     Repository class for managing User entities in the database.
-
-    Provides methods for retrieving, creating, updating, and deleting User records.
     """
 
     def __init__(self, db_session: Session):
@@ -24,20 +18,6 @@ class UserRepository:
         """
         self.db_session = db_session
 
-    def _get_user_by_id(self, user_id: int) -> User:
-        """
-        Private helper method to retrieve a User object by its ID.
-
-        :param user_id: ID of the User to retrieve.
-        :return: User object if found, else None.
-        """
-        query = select(User).filter(User.id == user_id)
-        result = self.db_session.execute(query)
-        user = result.scalar_one_or_none()
-        if not user:
-            logger.warning(f"User with ID {user_id} not found.")
-        return user
-
     def get_user(self, user_id: int) -> User:
         """
         Retrieves a User object by its ID.
@@ -45,8 +25,9 @@ class UserRepository:
         :param user_id: ID of the User to retrieve.
         :return: User object if found, else None.
         """
-        logger.info(f"Fetching User with ID {user_id}.")
-        return self._get_user_by_id(user_id)
+        query = select(User).filter(User.id == user_id)
+        result = self.db_session.execute(query)
+        return result.scalar_one_or_none()
 
     def get_user_by_email(self, email: str) -> User:
         """
@@ -55,13 +36,9 @@ class UserRepository:
         :param email: Email of the User to retrieve.
         :return: User object if found, else None.
         """
-        logger.info(f"Fetching User with email {email}.")
         query = select(User).filter(User.email == email)
         result = self.db_session.execute(query)
-        user = result.scalar_one_or_none()
-        if not user:
-            logger.warning(f"User with email {email} not found.")
-        return user
+        return result.scalar_one_or_none()
 
     def create_user(self, user: UserCreate) -> User:
         """
@@ -70,11 +47,9 @@ class UserRepository:
         :param user: UserCreate schema with the data for the new User.
         :return: The newly created User object.
         """
-        logger.info(f"Creating new User with email {user.email}.")
         db_user = User(email=user.email, hashed_password=user.password)
         self.db_session.add(db_user)
         self.db_session.refresh(db_user)
-        logger.info(f"User created with ID {db_user.id}.")
         return db_user
 
     def update_user(self, user_id: int, user_update: UserUpdate) -> User:
@@ -84,26 +59,14 @@ class UserRepository:
         :param user_id: ID of the User to update.
         :param user_update: UserUpdate schema with the updated data.
         :return: The updated User object.
-        :raises NotFoundException: If the User object is not found.
         """
-        logger.info(f"Updating User with ID {user_id}.")
-
-        query = select(User).filter(User.id == user_id)
-        result = self.db_session.execute(query)
-        db_user = result.scalar_one_or_none()
-
-        if not db_user:
-            logger.error(f"Update failed: User with ID {user_id} not found.")
-            raise NotFoundException(user_id)
-
         update_data = user_update.model_dump(exclude_unset=True)
         self.db_session.execute(
             update(User).where(User.id == user_id).values(**update_data)
         )
-
-        updated_user = self._get_user_by_id(user_id)
-        logger.info(f"User with ID {updated_user.id} updated.")
-        return updated_user
+        query = select(User).filter(User.id == user_id)
+        result = self.db_session.execute(query)
+        return result.scalar_one_or_none()
 
     def delete_user(self, user_id: int) -> User:
         """
@@ -112,11 +75,9 @@ class UserRepository:
         :param user_id: ID of the User to delete.
         :return: The deleted User object if it was found, else None.
         """
-        logger.info(f"Deleting User with ID {user_id}.")
-        db_user = self._get_user_by_id(user_id)
+        query = select(User).filter(User.id == user_id)
+        result = self.db_session.execute(query)
+        db_user = result.scalar_one_or_none()
         if db_user:
             self.db_session.delete(db_user)
-            logger.info(f"User with ID {user_id} deleted.")
-        else:
-            logger.warning(f"Delete failed: User with ID {user_id} not found.")
         return db_user
