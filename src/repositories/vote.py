@@ -3,8 +3,8 @@ from sqlalchemy.future import select
 from sqlalchemy import update
 from src.db.models.vote import Vote
 from src.schemas.vote import VoteCreate, VoteUpdate
-from src.db.connector import DbConnector
 from src.exceptions import NotFoundException
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +16,13 @@ class VoteRepository:
     Provides methods for retrieving, creating, updating, and deleting Vote records.
     """
 
-    def __init__(self, db_connector: DbConnector):
+    def __init__(self, db_session: Session):
         """
-        Initializes the VoteRepository with a DbConnector instance.
+        Initializes the VoteRepository with a Session instance.
 
-        :param db_connector: Instance of DbConnector for database operations.
+        :param db_session: SQLAlchemy Session instance for database operations.
         """
-        self.db_connector = db_connector
+        self.db_session = db_session
 
     def _get_vote_by_id(self, vote_id: int) -> Vote:
         """
@@ -31,13 +31,12 @@ class VoteRepository:
         :param vote_id: ID of the Vote to retrieve.
         :return: Vote object if found, else None.
         """
-        with self.db_connector.get_db() as db:
-            query = select(Vote).filter(Vote.id == vote_id)
-            result = db.execute(query)
-            vote = result.scalar_one_or_none()
-            if not vote:
-                logger.warning(f"Vote with ID {vote_id} not found.")
-            return vote
+        query = select(Vote).filter(Vote.id == vote_id)
+        result = self.db_session.execute(query)
+        vote = result.scalar_one_or_none()
+        if not vote:
+            logger.warning(f"Vote with ID {vote_id} not found.")
+        return vote
 
     def get_vote(self, vote_id: int) -> Vote:
         """
@@ -57,12 +56,11 @@ class VoteRepository:
         :return: The newly created Vote object.
         """
         logger.info("Creating new Vote entry.")
-        with self.db_connector.get_db() as db:
-            db_vote = Vote(**vote.model_dump())
-            db.add(db_vote)
-            db.refresh(db_vote)
-            logger.info(f"Vote created with ID {db_vote.id}.")
-            return db_vote
+        db_vote = Vote(**vote.model_dump())
+        self.db_session.add(db_vote)
+        self.db_session.refresh(db_vote)
+        logger.info(f"Vote created with ID {db_vote.id}.")
+        return db_vote
 
     def update_vote(self, vote_id: int, vote_update: VoteUpdate) -> Vote:
         """
@@ -71,27 +69,26 @@ class VoteRepository:
         :param vote_id: ID of the Vote to update.
         :param vote_update: VoteUpdate schema with the updated data.
         :return: The updated Vote object.
-        :raises VoteNotFoundException: If the Vote object is not found.
+        :raises NotFoundException: If the Vote object is not found.
         """
         logger.info(f"Updating Vote with ID {vote_id}.")
 
-        with self.db_connector.get_db() as db:
-            query = select(Vote).filter(Vote.id == vote_id)
-            result = db.execute(query)
-            db_vote = result.scalar_one_or_none()
+        query = select(Vote).filter(Vote.id == vote_id)
+        result = self.db_session.execute(query)
+        db_vote = result.scalar_one_or_none()
 
-            if not db_vote:
-                logger.error(f"Update failed: Vote with ID {vote_id} not found.")
-                raise NotFoundException(vote_id)
+        if not db_vote:
+            logger.error(f"Update failed: Vote with ID {vote_id} not found.")
+            raise NotFoundException(vote_id)
 
-            update_data = vote_update.model_dump(exclude_unset=True)
-            db.execute(
-                update(Vote).where(Vote.id == vote_id).values(**update_data)
-            )
+        update_data = vote_update.model_dump(exclude_unset=True)
+        self.db_session.execute(
+            update(Vote).where(Vote.id == vote_id).values(**update_data)
+        )
 
-            updated_vote = self._get_vote_by_id(vote_id)
-            logger.info(f"Vote with ID {vote_id} updated.")
-            return updated_vote
+        updated_vote = self._get_vote_by_id(vote_id)
+        logger.info(f"Vote with ID {vote_id} updated.")
+        return updated_vote
 
     def delete_vote(self, vote_id: int) -> Vote:
         """
@@ -101,11 +98,10 @@ class VoteRepository:
         :return: The deleted Vote object if it was found, else None.
         """
         logger.info(f"Deleting Vote with ID {vote_id}.")
-        with self.db_connector.get_db() as db:
-            db_vote = self._get_vote_by_id(vote_id)
-            if db_vote:
-                db.delete(db_vote)
-                logger.info(f"Vote with ID {vote_id} deleted.")
-            else:
-                logger.warning(f"Delete failed: Vote with ID {vote_id} not found.")
-            return db_vote
+        db_vote = self._get_vote_by_id(vote_id)
+        if db_vote:
+            self.db_session.delete(db_vote)
+            logger.info(f"Vote with ID {vote_id} deleted.")
+        else:
+            logger.warning(f"Delete failed: Vote with ID {vote_id} not found.")
+        return db_vote

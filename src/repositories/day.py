@@ -1,9 +1,9 @@
 import logging
 from sqlalchemy.future import select
 from sqlalchemy import update
+from sqlalchemy.orm import Session
 from src.db.models.day import Day
 from src.schemas.day import DayCreate, DayUpdate
-from src.db.connector import DbConnector
 from src.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
@@ -16,21 +16,13 @@ class DayRepository:
     Provides methods for retrieving, creating, updating, and deleting Day records.
     """
 
-    def __init__(self, db_connector: DbConnector):
+    def __init__(self, db_session: Session):
         """
-        Initializes the DayRepository with a DbConnector instance.
+        Initializes the DayRepository with a Session instance.
 
-        :param db_connector: Instance of DbConnector for database operations.
+        :param db_session: SQLAlchemy Session instance for database operations.
         """
-        self.db_connector = db_connector
-
-    # def get_db_session(self):
-    #     """
-    #     Retrieves a database session from the DbConnector instance.
-
-    #     :return: A database session object.
-    #     """
-    #     return self.db_connector.get_db()
+        self.db_session = db_session
 
     def _get_day_by_id(self, day_id: int) -> Day:
         """
@@ -39,13 +31,9 @@ class DayRepository:
         :param day_id: ID of the Day to retrieve.
         :return: Day object if found, else None.
         """
-        with self.db_connector.get_db() as db:
-            query = select(Day).filter(Day.id == day_id)
-            result = db.execute(query)
-            day = result.scalar_one_or_none()
-            if not day:
-                logger.warning(f"Day with ID {day_id} not found.")
-            return day
+        query = select(Day).filter(Day.id == day_id)
+        result = self.db_session.execute(query)
+        return result.scalar_one_or_none()
 
     def get_day(self, day_id: int) -> Day:
         """
@@ -55,7 +43,10 @@ class DayRepository:
         :return: Day object if found, else None.
         """
         logger.info(f"Fetching Day with ID {day_id}.")
-        return self._get_day_by_id(day_id)
+        day = self._get_day_by_id(day_id)
+        if not day:
+            logger.warning(f"Day with ID {day_id} not found.")
+        return day
 
     def create_day(self, day: DayCreate) -> Day:
         """
@@ -65,40 +56,34 @@ class DayRepository:
         :return: The newly created Day object.
         """
         logger.info("Creating new Day entry.")
-        with self.db_connector.get_db() as db:
-            db_day = Day(**day.model_dump())
-            db.add(db_day)
-            db.refresh(db_day)
-            logger.info(f"Day created with ID {db_day.id}.")
-            return db_day
+        db_day = Day(**day.model_dump())
+        self.db_session.add(db_day)
+        logger.info(f"Day created with ID {db_day.id}.")
+        return db_day
 
-
-    def update_day(self, day_id: int, day_update: DayUpdate) -> Day:
+    def update_day(self, day_id: int, update_data: dict) -> Day:
         """
         Updates an existing Day object in the database.
 
         :param day_id: ID of the Day to update.
-        :param day_update: DayUpdate schema with the updated data.
+        :param update_data: Dictionary with updated data.
         :return: The updated Day object.
         :raises NotFoundException: If the Day object is not found.
         """
         logger.info(f"Updating Day with ID {day_id}.")
 
-        with self.db_connector.get_db() as db:
-            query = select(Day).filter(Day.id == day_id)
-            result = db.execute(query)
-            db_day = result.scalar_one_or_none()
+        db_day = self._get_day_by_id(day_id)
+        if not db_day:
+            logger.error(f"Update failed: Day with ID {day_id} not found.")
+            raise NotFoundException(day_id)
 
-            if not db_day:
-                logger.error(f"Update failed: Day with ID {day_id} not found.")
-                raise NotFoundException(day_id)
+        self.db_session.execute(
+            update(Day).where(Day.id == day_id).values(**update_data)
+        )
 
-            update_data = day_update.model_dump(exclude_unset=True)
-            db.execute(update(Day).where(Day.id == day_id).values(**update_data))
-
-            updated_day = self._get_day_by_id(day_id)
-            logger.info(f"Day with ID {day_id} updated.")
-            return updated_day
+        updated_day = self._get_day_by_id(day_id)
+        logger.info(f"Day with ID {day_id} updated.")
+        return updated_day
 
     def delete_day(self, day_id: int) -> Day:
         """
@@ -108,11 +93,10 @@ class DayRepository:
         :return: The deleted Day object if it was found, else None.
         """
         logger.info(f"Deleting Day with ID {day_id}.")
-        with self.db_connector.get_db() as db:
-            db_day = self._get_day_by_id(day_id)
-            if db_day:
-                db.delete(db_day)
-                logger.info(f"Day with ID {day_id} deleted.")
-            else:
-                logger.warning(f"Delete failed: Day with ID {day_id} not found.")
-            return db_day
+        db_day = self._get_day_by_id(day_id)
+        if db_day:
+            self.db_session.delete(db_day)
+            logger.info(f"Day with ID {day_id} deleted.")
+        else:
+            logger.warning(f"Delete failed: Day with ID {day_id} not found.")
+        return db_day

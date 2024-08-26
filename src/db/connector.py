@@ -34,14 +34,6 @@ class DbConnector:
             self._session = self.SessionLocal()
         return self._session
 
-    def close_session(self) -> None:
-        """
-        Closes the current session if it exists.
-        """
-        if self._session is not None:
-            self._session.close()
-            self._session = None
-
     @contextmanager
     def get_db(self, auto_commit: bool = True) -> Session:
         """

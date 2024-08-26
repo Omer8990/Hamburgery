@@ -3,24 +3,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from src.schemas.food import FoodCreate, FoodUpdate, FoodRead
-from src.db.connector import DbConnector
+from src.db.session_manager import get_db_session
 from src.exceptions import NotFoundException
 from src.repositories.food import FoodRepository
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-db_connector = DbConnector()
 
-def get_db_session() -> Session:
-    """
-    Dependency that provides a SQLAlchemy session.
-
-    Uses the DbConnector's get_db method to handle session lifecycle.
-    """
-    return db_connector.get_db()
-
-def get_food_repository(db_session: Session = Depends(get_db_session)) -> FoodRepository:
+def get_food_repository(
+    db_session: Session = Depends(get_db_session),
+) -> FoodRepository:
     """
     Dependency that provides a FoodRepository instance.
 
@@ -28,6 +21,7 @@ def get_food_repository(db_session: Session = Depends(get_db_session)) -> FoodRe
     :return: A FoodRepository instance.
     """
     return FoodRepository(db_session)
+
 
 @router.get("/foods/{food_id}", response_model=FoodRead)
 def get_food(food_id: int, food_repo: FoodRepository = Depends(get_food_repository)):
@@ -43,11 +37,16 @@ def get_food(food_id: int, food_repo: FoodRepository = Depends(get_food_reposito
     food = food_repo.get_food(food_id)
     if not food:
         logger.error(f"Food with ID {food_id} not found.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Food not found"
+        )
     return food
 
+
 @router.post("/foods", response_model=FoodRead, status_code=status.HTTP_201_CREATED)
-def create_food(food: FoodCreate, food_repo: FoodRepository = Depends(get_food_repository)):
+def create_food(
+    food: FoodCreate, food_repo: FoodRepository = Depends(get_food_repository)
+):
     """
     Create a new food item.
 
@@ -63,10 +62,18 @@ def create_food(food: FoodCreate, food_repo: FoodRepository = Depends(get_food_r
         return new_food
     except SQLAlchemyError as e:
         logger.error(f"Failed to create food item: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
+
 
 @router.put("/foods/{food_id}", response_model=FoodRead)
-def update_food(food_id: int, food_update: FoodUpdate, food_repo: FoodRepository = Depends(get_food_repository)):
+def update_food(
+    food_id: int,
+    food_update: FoodUpdate,
+    food_repo: FoodRepository = Depends(get_food_repository),
+):
     """
     Update an existing food item by its ID.
 
@@ -83,10 +90,16 @@ def update_food(food_id: int, food_update: FoodUpdate, food_repo: FoodRepository
         return updated_food
     except NotFoundException:
         logger.error(f"Food item with ID {food_id} not found for update.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Food not found"
+        )
     except SQLAlchemyError as e:
         logger.error(f"Failed to update food item: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
+
 
 @router.delete("/foods/{food_id}", response_model=FoodRead)
 def delete_food(food_id: int, food_repo: FoodRepository = Depends(get_food_repository)):
@@ -102,6 +115,8 @@ def delete_food(food_id: int, food_repo: FoodRepository = Depends(get_food_repos
     food = food_repo.delete_food(food_id)
     if not food:
         logger.error(f"Food item with ID {food_id} not found for deletion.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Food not found"
+        )
     logger.info(f"Food item with ID {food_id} deleted successfully")
     return food

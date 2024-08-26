@@ -2,25 +2,18 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from schemas.vote import VoteCreate, VoteUpdate, VoteRead 
+from schemas.vote import VoteCreate, VoteUpdate, VoteRead
 from repositories.vote import VoteRepository
-from db.connector import DbConnector
+from src.db.session_manager import get_db_session
 from exceptions import NotFoundException
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-db_connector = DbConnector()
 
-def get_db_session() -> Session:
-    """
-    Dependency that provides a SQLAlchemy session.
-
-    Uses the DbConnector's get_db method to handle session lifecycle.
-    """
-    return db_connector.get_db()
-
-def get_vote_repository(db_session: Session = Depends(get_db_session)) -> VoteRepository:
+def get_vote_repository(
+    db_session: Session = Depends(get_db_session),
+) -> VoteRepository:
     """
     Dependency that provides a VoteRepository instance.
 
@@ -28,6 +21,7 @@ def get_vote_repository(db_session: Session = Depends(get_db_session)) -> VoteRe
     :return: A VoteRepository instance.
     """
     return VoteRepository(db_session)
+
 
 @router.get("/votes/{vote_id}", response_model=VoteRead)
 def get_vote(vote_id: int, vote_repo: VoteRepository = Depends(get_vote_repository)):
@@ -43,11 +37,16 @@ def get_vote(vote_id: int, vote_repo: VoteRepository = Depends(get_vote_reposito
     vote = vote_repo.get_vote(vote_id)
     if not vote:
         logger.error(f"Vote with ID {vote_id} not found.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found"
+        )
     return vote
 
-@router.post("/votes", response_model=VoteRead, status_code=status.HTTP_201_CREATED) 
-def create_vote(vote: VoteCreate, vote_repo: VoteRepository = Depends(get_vote_repository)):
+
+@router.post("/votes", response_model=VoteRead, status_code=status.HTTP_201_CREATED)
+def create_vote(
+    vote: VoteCreate, vote_repo: VoteRepository = Depends(get_vote_repository)
+):
     """
     Create a new vote.
 
@@ -63,10 +62,18 @@ def create_vote(vote: VoteCreate, vote_repo: VoteRepository = Depends(get_vote_r
         return new_vote
     except SQLAlchemyError as e:
         logger.error(f"Failed to create vote: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
+
 
 @router.put("/votes/{vote_id}", response_model=VoteRead)
-def update_vote(vote_id: int, vote_update: VoteUpdate, vote_repo: VoteRepository = Depends(get_vote_repository)):
+def update_vote(
+    vote_id: int,
+    vote_update: VoteUpdate,
+    vote_repo: VoteRepository = Depends(get_vote_repository),
+):
     """
     Update an existing vote by its ID.
 
@@ -83,12 +90,18 @@ def update_vote(vote_id: int, vote_update: VoteUpdate, vote_repo: VoteRepository
         return updated_vote
     except NotFoundException:
         logger.error(f"Vote with ID {vote_id} not found for update.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found"
+        )
     except SQLAlchemyError as e:
         logger.error(f"Failed to update vote: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
 
-@router.delete("/votes/{vote_id}", response_model=VoteRead) 
+
+@router.delete("/votes/{vote_id}", response_model=VoteRead)
 def delete_vote(vote_id: int, vote_repo: VoteRepository = Depends(get_vote_repository)):
     """
     Delete a vote by its ID.
@@ -102,6 +115,8 @@ def delete_vote(vote_id: int, vote_repo: VoteRepository = Depends(get_vote_repos
     vote = vote_repo.delete_vote(vote_id)
     if not vote:
         logger.error(f"Vote with ID {vote_id} not found for deletion.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vote not found"
+        )
     logger.info(f"Vote with ID {vote_id} deleted successfully")
     return vote

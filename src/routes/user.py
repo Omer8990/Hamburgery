@@ -3,24 +3,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from src.schemas.user import UserCreate, UserUpdate, UserRead
-from src.db.connector import DbConnector
 from src.exceptions import NotFoundException
 from src.repositories.user import UserRepository
+from src.db.session_manager import get_db_session
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-db_connector = DbConnector()
 
-def get_db_session() -> Session:
-    """
-    Dependency that provides a SQLAlchemy session.
-
-    Uses the DbConnector's get_db method to handle session lifecycle.
-    """
-    return db_connector.get_db()
-
-def get_user_repository(db_session: Session = Depends(get_db_session)) -> UserRepository:
+def get_user_repository(
+    db_session: Session = Depends(get_db_session),
+) -> UserRepository:
     """
     Dependency that provides a UserRepository instance.
 
@@ -28,6 +22,7 @@ def get_user_repository(db_session: Session = Depends(get_db_session)) -> UserRe
     :return: A UserRepository instance.
     """
     return UserRepository(db_session)
+
 
 @router.get("/users/{user_id}", response_model=UserRead)
 def get_user(user_id: int, user_repo: UserRepository = Depends(get_user_repository)):
@@ -43,11 +38,16 @@ def get_user(user_id: int, user_repo: UserRepository = Depends(get_user_reposito
     user = user_repo.get_user(user_id)
     if not user:
         logger.error(f"User with ID {user_id} not found.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return user
 
+
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def create_user(user: UserCreate, user_repo: UserRepository = Depends(get_user_repository)):
+def create_user(
+    user: UserCreate, user_repo: UserRepository = Depends(get_user_repository)
+):
     """
     Create a new user.
 
@@ -63,10 +63,18 @@ def create_user(user: UserCreate, user_repo: UserRepository = Depends(get_user_r
         return new_user
     except SQLAlchemyError as e:
         logger.error(f"Failed to create user: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
+
 
 @router.put("/users/{user_id}", response_model=UserRead)
-def update_user(user_id: int, user_update: UserUpdate, user_repo: UserRepository = Depends(get_user_repository)):
+def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    user_repo: UserRepository = Depends(get_user_repository),
+):
     """
     Update an existing user by their ID.
 
@@ -83,10 +91,16 @@ def update_user(user_id: int, user_update: UserUpdate, user_repo: UserRepository
         return updated_user
     except NotFoundException:
         logger.error(f"User with ID {user_id} not found for update.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     except SQLAlchemyError as e:
         logger.error(f"Failed to update user: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
+
 
 @router.delete("/users/{user_id}", response_model=UserRead)
 def delete_user(user_id: int, user_repo: UserRepository = Depends(get_user_repository)):
@@ -102,6 +116,8 @@ def delete_user(user_id: int, user_repo: UserRepository = Depends(get_user_repos
     user = user_repo.delete_user(user_id)
     if not user:
         logger.error(f"User with ID {user_id} not found for deletion.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     logger.info(f"User with ID {user_id} deleted successfully")
     return user

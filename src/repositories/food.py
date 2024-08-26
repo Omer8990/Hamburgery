@@ -3,8 +3,8 @@ from sqlalchemy.future import select
 from sqlalchemy import update
 from src.db.models.food import Food
 from src.schemas.food import FoodCreate, FoodUpdate
-from src.db.connector import DbConnector
 from src.exceptions import NotFoundException
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +16,13 @@ class FoodRepository:
     Provides methods for retrieving, creating, updating, and deleting Food records.
     """
 
-    def __init__(self, db_connector: DbConnector):
+    def __init__(self, db_session: Session):
         """
-        Initializes the FoodRepository with a DbConnector instance.
+        Initializes the FoodRepository with a Session instance.
 
-        :param db_connector: Instance of DbConnector for database operations.
+        :param db_session: SQLAlchemy Session instance for database operations.
         """
-        self.db_connector = db_connector
+        self.db_session = db_session
 
     def _get_food_by_id(self, food_id: int) -> Food:
         """
@@ -31,13 +31,12 @@ class FoodRepository:
         :param food_id: ID of the Food to retrieve.
         :return: Food object if found, else None.
         """
-        with self.db_connector.get_db() as db:
-            query = select(Food).filter(Food.id == food_id)
-            result = db.execute(query)
-            food = result.scalar_one_or_none()
-            if not food:
-                logger.warning(f"Food with ID {food_id} not found.")
-            return food
+        query = select(Food).filter(Food.id == food_id)
+        result = self.db_session.execute(query)
+        food = result.scalar_one_or_none()
+        if not food:
+            logger.warning(f"Food with ID {food_id} not found.")
+        return food
 
     def get_food(self, food_id: int) -> Food:
         """
@@ -57,12 +56,11 @@ class FoodRepository:
         :return: The newly created Food object.
         """
         logger.info("Creating new Food entry.")
-        with self.db_connector.get_db() as db:
-            db_food = Food(**food.model_dump())
-            db.add(db_food)
-            db.refresh(db_food)
-            logger.info(f"Food created with ID {db_food.id}.")
-            return db_food
+        db_food = Food(**food.model_dump())
+        self.db_session.add(db_food)
+        self.db_session.refresh(db_food)
+        logger.info(f"Food created with ID {db_food.id}.")
+        return db_food
 
     def update_food(self, food_id: int, food_update: FoodUpdate) -> Food:
         """
@@ -75,23 +73,22 @@ class FoodRepository:
         """
         logger.info(f"Updating Food with ID {food_id}.")
 
-        with self.db_connector.get_db() as db:
-            query = select(Food).filter(Food.id == food_id)
-            result = db.execute(query)
-            db_food = result.scalar_one_or_none()
+        query = select(Food).filter(Food.id == food_id)
+        result = self.db_session.execute(query)
+        db_food = result.scalar_one_or_none()
 
-            if not db_food:
-                logger.error(f"Update failed: Food with ID {food_id} not found.")
-                raise NotFoundException(food_id)
+        if not db_food:
+            logger.error(f"Update failed: Food with ID {food_id} not found.")
+            raise NotFoundException(food_id)
 
-            update_data = food_update.model_dump(exclude_unset=True)
-            db.execute(
-                update(Food).where(Food.id == food_id).values(**update_data)
-            )
+        update_data = food_update.model_dump(exclude_unset=True)
+        self.db_session.execute(
+            update(Food).where(Food.id == food_id).values(**update_data)
+        )
 
-            updated_food = self._get_food_by_id(food_id)
-            logger.info(f"Food with ID {updated_food.id} updated.")
-            return updated_food
+        updated_food = self._get_food_by_id(food_id)
+        logger.info(f"Food with ID {updated_food.id} updated.")
+        return updated_food
 
     def delete_food(self, food_id: int) -> Food:
         """
@@ -101,11 +98,10 @@ class FoodRepository:
         :return: The deleted Food object if it was found, else None.
         """
         logger.info(f"Deleting Food with ID {food_id}.")
-        with self.db_connector.get_db() as db:
-            db_food = self._get_food_by_id(food_id)
-            if db_food:
-                db.delete(db_food)
-                logger.info(f"Food with ID {food_id} deleted.")
-            else:
-                logger.warning(f"Delete failed: Food with ID {food_id} not found.")
-            return db_food
+        db_food = self._get_food_by_id(food_id)
+        if db_food:
+            self.db_session.delete(db_food)
+            logger.info(f"Food with ID {food_id} deleted.")
+        else:
+            logger.warning(f"Delete failed: Food with ID {food_id} not found.")
+        return db_food

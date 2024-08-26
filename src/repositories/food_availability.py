@@ -5,6 +5,7 @@ from src.db.models.food_availability import FoodAvailability
 from src.schemas.food_availability import FoodAvailabilityCreate, FoodAvailabilityUpdate
 from src.db.connector import DbConnector
 from src.exceptions import NotFoundException
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +17,13 @@ class FoodAvailabilityRepository:
     Provides methods for retrieving, creating, updating, and deleting FoodAvailability records.
     """
 
-    def __init__(self, db_connector: DbConnector):
+    def __init__(self, db_session: Session):
         """
         Initializes the FoodAvailabilityRepository with a DbConnector instance.
 
         :param db_connector: Instance of DbConnector for database operations.
         """
-        self.db_connector = db_connector
+        self.db_session = db_session
 
     def _get_food_availability_by_id(
         self, food_availability_id: int
@@ -33,21 +34,18 @@ class FoodAvailabilityRepository:
         :param food_availability_id: ID of the FoodAvailability to retrieve.
         :return: FoodAvailability object if found, else None.
         """
-        with self.db_connector.get_db() as db:
-            query = select(FoodAvailability).filter(
-                FoodAvailability.id == food_availability_id
+        query = select(FoodAvailability).filter(
+            FoodAvailability.id == food_availability_id
+        )
+        result = self.db_session.execute(query)
+        food_availability = result.scalar_one_or_none()
+        if not food_availability:
+            logger.warning(
+                f"FoodAvailability with ID {food_availability_id} not found."
             )
-            result = db.execute(query)
-            food_availability = result.scalar_one_or_none()
-            if not food_availability:
-                logger.warning(
-                    f"FoodAvailability with ID {food_availability_id} not found."
-                )
-            return food_availability
+        return food_availability
 
-    def get_food_availability(
-        self, food_availability_id: int
-    ) -> FoodAvailability:
+    def get_food_availability(self, food_availability_id: int) -> FoodAvailability:
         """
         Retrieves a FoodAvailability object by its ID.
 
@@ -67,12 +65,12 @@ class FoodAvailabilityRepository:
         :return: The newly created FoodAvailability object.
         """
         logger.info("Creating new FoodAvailability entry.")
-        with self.db_connector.get_db() as db:
-            db_food_availability = FoodAvailability(**food_availability.model_dump())
-            db.add(db_food_availability)
-            db.refresh(db_food_availability)
-            logger.info(f"FoodAvailability created with ID {db_food_availability.id}.")
-            return db_food_availability
+
+        db_food_availability = FoodAvailability(**food_availability.model_dump())
+        self.db_session.add(db_food_availability)
+        self.db_session.refresh(db_food_availability)
+        logger.info(f"FoodAvailability created with ID {db_food_availability.id}.")
+        return db_food_availability
 
     def update_food_availability(
         self,
@@ -89,37 +87,32 @@ class FoodAvailabilityRepository:
         """
         logger.info(f"Updating FoodAvailability with ID {food_availability_id}.")
 
-        with self.db_connector.get_db() as db:
-            query = select(FoodAvailability).filter(
-                FoodAvailability.id == food_availability_id
-            )
-            result = db.execute(query)
-            db_food_availability = result.scalar_one_or_none()
+        query = select(FoodAvailability).filter(
+            FoodAvailability.id == food_availability_id
+        )
+        result = self.db_session.execute(query)
+        db_food_availability = result.scalar_one_or_none()
 
-            if not db_food_availability:
-                logger.error(
-                    f"Update failed: FoodAvailability with ID {food_availability_id} not found."
-                )
-                raise NotFoundException(food_availability_id)
-
-            update_data = food_availability_update.model_dump(exclude_unset=True)
-            db.execute(
-                update(FoodAvailability)
-                .where(FoodAvailability.id == food_availability_id)
-                .values(**update_data)
+        if not db_food_availability:
+            logger.error(
+                f"Update failed: FoodAvailability with ID {food_availability_id} not found."
             )
+            raise NotFoundException(food_availability_id)
 
-            updated_food_availability = self._get_food_availability_by_id(
-                food_availability_id
-            )
-            logger.info(
-                f"FoodAvailability with ID {updated_food_availability.id} updated."
-            )
-            return updated_food_availability
+        update_data = food_availability_update.model_dump(exclude_unset=True)
+        self.db_session.execute(
+            update(FoodAvailability)
+            .where(FoodAvailability.id == food_availability_id)
+            .values(**update_data)
+        )
 
-    def delete_food_availability(
-        self, food_availability_id: int
-    ) -> FoodAvailability:
+        updated_food_availability = self._get_food_availability_by_id(
+            food_availability_id
+        )
+        logger.info(f"FoodAvailability with ID {updated_food_availability.id} updated.")
+        return updated_food_availability
+
+    def delete_food_availability(self, food_availability_id: int) -> FoodAvailability:
         """
         Deletes a FoodAvailability object from the database by its ID.
 
@@ -127,15 +120,13 @@ class FoodAvailabilityRepository:
         :return: The deleted FoodAvailability object if it was found, else None.
         """
         logger.info(f"Deleting FoodAvailability with ID {food_availability_id}.")
-        with self.db_connector.get_db() as db:
-            db_food_availability = self._get_food_availability_by_id(
-                food_availability_id
+
+        db_food_availability = self._get_food_availability_by_id(food_availability_id)
+        if db_food_availability:
+            self.db_session.delete(db_food_availability)
+            logger.info(f"FoodAvailability with ID {food_availability_id} deleted.")
+        else:
+            logger.warning(
+                f"Delete failed: FoodAvailability with ID {food_availability_id} not found."
             )
-            if db_food_availability:
-                db.delete(db_food_availability)
-                logger.info(f"FoodAvailability with ID {food_availability_id} deleted.")
-            else:
-                logger.warning(
-                    f"Delete failed: FoodAvailability with ID {food_availability_id} not found."
-                )
-            return db_food_availability
+        return db_food_availability
